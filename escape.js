@@ -95,26 +95,31 @@ function ask(description, options) {
   while (true) {
     const raw = prompt(
       header() + "\n" + description + "\n\n" + menu +
-      "\n\nType a number or a keyword, then press OK:", ""
+      "\n\nType a number or a keyword, then press OK.\n(Cancel = quit the game)", ""
     );
     if (raw === null) throw new QuitGame();
     const answer = normalize(raw);
     const found = options.find((o, i) => answer === String(i + 1) || o.keys.includes(answer));
     if (found) return found.id;
-    alert("The AI laughs: \"I don't understand '" + raw.trim() + "'.\"\n" +
+    // FIX: clearer message when the player typed nothing
+    const shown = raw.trim() === "" ? "nothing" : "'" + raw.trim() + "'";
+    alert("The AI laughs: \"I don't understand " + shown + ".\"\n" +
           "Please type one of the numbers 1-" + options.length + " or a keyword. No move was used.");
   }
 }
 
+// Returns the password typed (upper-case), or null if the player typed "back".
+// Cancel still ends the game safely.
 function askPassword() {
   while (true) {
     const raw = prompt(
       header() + "\nThe terminal glows: ENTER OVERRIDE PASSWORD\n" +
       "Attempts left: " + (MAX_WRONG_PASSWORDS - state.wrongPasswords) +
-      "\n\nType the password (Cancel ends the game):", ""
+      "\n\nType the password, or type BACK to step away from the terminal.\n(Cancel = quit the game)", ""
     );
     if (raw === null) throw new QuitGame();
     const answer = raw.trim().toUpperCase();
+    if (answer === "BACK") return null;   // FIX: a way out that doesn't cost an attempt
     if (answer !== "") return answer;
     alert("You must type something. No attempt was used.");
   }
@@ -131,7 +136,8 @@ function showStatus() {
     "STATUS\n" +
     "Moves left: " + movesLeft() + "\n" +
     "Items: " + inventoryText() + "\n" +
-    "Password known: " + (state.noteRead ? "yes" : "no") + "\n" +
+    // FIX: show the password once found, so the player doesn't waste moves going back
+    "Password: " + (state.noteRead ? PASSWORD : "not found yet") + "\n" +
     "Firewall: " + (state.firewallDown ? "DISABLED" : "active") + "\n\n" +
     "GOAL: reach the Exit Door with a keycard and the firewall off\n" +
     "(or find another way to cut the lasers...).";
@@ -210,7 +216,7 @@ function storageCloset() {
   } else if (choice === "crate") {
     if (state.crateOpened) {
       alert("The crate is empty now.");
-    } else if (confirm("The crate is warm and buzzing. Open it?")) {
+    } else if (confirm("The crate is warm and buzzing. Open it?\n\nOK = yes, Cancel = no")) {
       state.crateOpened = true;
       state.emp = true;
       spend();
@@ -248,7 +254,7 @@ function controlRoom() {
           "Not that anyone could ever find it...\"");
     log("The AI's diary hints that the closet holds useful things.");
   } else if (choice === "lever") {
-    if (confirm("Are you REALLY sure you want to pull the lever?")) {
+    if (confirm("Are you REALLY sure you want to pull the lever?\n\nOK = pull it, Cancel = step back")) {
       endGame(false, "Overload",
         "The lever overloads the fortress. Alarms scream, the doors slam shut and the AI laughs as the lights go out. " +
         "You never should have pulled it...");
@@ -264,6 +270,7 @@ function useTerminal() {
     return;
   }
   const attempt = askPassword();
+  if (attempt === null) return;          // FIX: stepped away, no move or attempt spent
   spend();
   if (attempt === PASSWORD) {
     state.firewallDown = true;
@@ -306,7 +313,7 @@ function exitDoor() {
     } else {
       spend();
       alert("The door unlocks, but the lasers are still active!");
-      if (confirm("Run through the lasers anyway?")) {
+      if (confirm("Run through the lasers anyway?\n\nOK = run, Cancel = stay")) {
         endGame(false, "Fried",
           "You sprint into the lasers. Bzzzt! The AI cackles: \"Humans are so predictable.\"");
       }
@@ -315,8 +322,9 @@ function exitDoor() {
     if (!state.emp) {
       alert("You don't have an EMP grenade.");
     } else if (!state.keycard) {
-      alert("The EMP shuts the lasers down, but the door still needs a keycard.\n" +
-            "You decide to keep the grenade for now.");
+      // FIX: old text said the lasers shut down, but nothing changed in the game
+      alert("You hesitate. The EMP could cut the lasers, but the door still won't open without a keycard.\n" +
+            "You keep the grenade for now.");
     } else {
       spend();
       endGame(true, "Noisy escape",
@@ -354,7 +362,10 @@ function showIntro() {
     "- Capitals and extra spaces don't matter; invalid answers cost nothing.\n" +
     "- Cancel ends the game.\n" +
     "- You have " + MAX_MOVES + " moves.\n\n" +
-    "TIP: open the browser console (F12, or Ctrl+Shift+J / Cmd+Option+J) to follow the Fortress Log."
+    "ABOUT THE CONSOLE (optional but helpful):\n" +
+    "- It shows the Fortress Log: a map and a record of everything you do and find.\n" +
+    "- To open it, press F12 (or Ctrl+Shift+J on Windows/Linux, Cmd+Option+J on Mac) and click the 'Console' tab.\n" +
+    "- Open it now, then click OK to begin."
   );
 }
 
@@ -372,18 +383,20 @@ function startGame() {
   try {
     showIntro();
     do {
-      state = newState();   // full reset: items, decisions, moves
+      state = newState();
       logMap();
       log("New game started.");
       playGame();
     } while (confirm("Play again?\n\nOK = new game, Cancel = quit"));
-    alert("Thanks for playing! Click the start button to play again.");
+    alert("Thanks for playing! Reload the page to play again.");   // FIX: no start button exists
   } catch (error) {
     if (error instanceof QuitGame) {
       log("Game cancelled by the player.");
-      alert("Game ended. Click the start button to play again.");
+      alert("Game ended. Reload the page to play again.");
     } else {
       throw error;
     }
   }
 }
+
+startGame();
